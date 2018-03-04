@@ -2,7 +2,10 @@ package edu.buffalo.cse.cse486586.groupmessenger2;
 
 import android.content.ContentProvider;
 import android.content.ContentValues;
+import android.content.Context;
 import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteOpenHelper;
 import android.net.Uri;
 import android.util.Log;
 
@@ -25,6 +28,29 @@ import android.util.Log;
  *
  */
 public class GroupMessengerProvider extends ContentProvider {
+    public static String DB_NAME = "GroupMessenger.db";
+    public static String TABLE_NAME = "MessageHistory";
+    public static String Create_Query = "CREATE TABLE " + TABLE_NAME +
+            "(key TEXT PRIMARY KEY, value TEXT);";
+    public SQLiteDatabase db;
+    public static final String[] projections = {"key","value"};
+
+    public static class dbHelper extends SQLiteOpenHelper {
+        dbHelper(Context context){
+            super(context,DB_NAME,null,1);
+        }
+
+        @Override
+        public void onCreate(SQLiteDatabase db){
+            db.execSQL(Create_Query);
+        }
+
+        @Override
+        public void onUpgrade(SQLiteDatabase db, int old_version, int new_version){
+            db.execSQL("DROP TABLE IF EXISTS "+TABLE_NAME);
+            onCreate(db);
+        }
+    }
 
     @Override
     public int delete(Uri uri, String selection, String[] selectionArgs) {
@@ -50,6 +76,14 @@ public class GroupMessengerProvider extends ContentProvider {
          * internal storage option that we used in PA1. If you want to use that option, please
          * take a look at the code for PA1.
          */
+        long tempVal;
+        String[] selArgs = {values.get(projections[0]).toString()};
+        Cursor cursor = db.query(TABLE_NAME,projections,projections[0]+ " = ?",selArgs,null,null,null);
+        if(cursor.getCount()<1)
+            tempVal = db.insert(TABLE_NAME,null,values);
+        else
+            update(uri,values,projections[0],selArgs);
+
         Log.v("insert", values.toString());
         return uri;
     }
@@ -57,12 +91,15 @@ public class GroupMessengerProvider extends ContentProvider {
     @Override
     public boolean onCreate() {
         // If you need to perform any one-time initialization task, please do it here.
-        return false;
+        dbHelper help  = new dbHelper(getContext());
+        db = help.getWritableDatabase();
+        return (db!=null);
     }
 
     @Override
     public int update(Uri uri, ContentValues values, String selection, String[] selectionArgs) {
         // You do not need to implement this.
+        long temp = db.update(TABLE_NAME,values,selection+ " = ?",selectionArgs);
         return 0;
     }
 
@@ -80,7 +117,8 @@ public class GroupMessengerProvider extends ContentProvider {
          * recommend building a MatrixCursor described at:
          * http://developer.android.com/reference/android/database/MatrixCursor.html
          */
+        Cursor cursor = db.query(TABLE_NAME,projection,"key = '" +selection + "'",selectionArgs,null,null,sortOrder);
         Log.v("query", selection);
-        return null;
+        return cursor;
     }
 }
