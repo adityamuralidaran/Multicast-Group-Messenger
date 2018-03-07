@@ -35,6 +35,7 @@ public class GroupMessengerProvider extends ContentProvider {
     public SQLiteDatabase db;
     public static final String[] projections = {"key","value"};
 
+    // dbHelper class. Reference: https://developer.android.com/reference/android/database/sqlite/SQLiteOpenHelper.html
     public static class dbHelper extends SQLiteOpenHelper {
         dbHelper(Context context){
             super(context,DB_NAME,null,1);
