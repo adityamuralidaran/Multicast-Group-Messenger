@@ -48,6 +48,7 @@ public class GroupMessengerActivity extends Activity {
     static final String[] Ports_Array = {"11108","11112","11116","11120","11124"};
     static final List<String> REMOTE_PORTS = new ArrayList<String>(Arrays.asList(Ports_Array));
     public static int Total_Ports = 5;
+    public static String Failed_AVD = new String("NONE");
     static final int SERVER_PORT = 10000;
     public static int seqNumber = 0;
     public static int GlobalSeqNumber = 0;
@@ -180,8 +181,61 @@ public class GroupMessengerActivity extends Activity {
 
                 while (true) {
                     Socket newSocket = serverSocket.accept();
+                    /*DataOutputStream outputStream = new DataOutputStream(newSocket.getOutputStream());
+                    outputStream.writeUTF("ack");
+                    outputStream.flush();
+                    //outputStream.close();*/
                     DataInputStream inputStream = new DataInputStream(newSocket.getInputStream());
-                    publishProgress(inputStream.readUTF());
+                    String strReceived = inputStream.readUTF().trim();
+
+
+                    JSONObject obj = new JSONObject(strReceived);
+                    String type = (String) obj.get("type");
+                    String avd = (String) obj.get("avd");
+                    String pro = (String) obj.get("pro");
+                    // Message from same AVD.
+                    if(type.equals("A")||type.equals("F")) {
+                        publishProgress(strReceived);
+                    }
+                    if (avd.equals(my_port) && type.equals("M")) {
+                        Log.e(TAG, "M - msg from same AVD" + obj.toString());
+                        Iterator<JSONObject> it = Proposed_Queue.iterator();
+                        while(it.hasNext()) {
+                            JSONObject currObj = it.next();
+                            String currPro = (String) currObj.get("pro");
+                            String currAvd = (String) currObj.get("avd");
+                            if(currAvd.equals(avd) && currPro.equals(pro)){
+                                //Proposed_Queue.remove(currObj);
+                                currObj.put("type", "P");
+                                currObj.put(my_port,"1");
+                                //int total = Integer.parseInt((String) currObj.get("totalrep")) + 1;
+                                //currObj.put("totalrep", Integer.toString(total));
+                                Log.e(TAG, "M - msg from same AVD pushed to queue" + currObj.toString());
+                                //Proposed_Queue.add(currObj);
+                                DataOutputStream outputStream = new DataOutputStream(newSocket.getOutputStream());
+                                outputStream.writeUTF(currObj.toString());
+                                outputStream.flush();
+                                break;
+                            }
+                        }
+                    }
+                    //type - 'M', Initial message that is sent to AVDs to get proposals.
+                    if (!avd.equals(my_port) && type.equals("M")) {
+                        Log.e(TAG, "M - msg received initially" + obj.toString());
+                        int getSeq = Integer.parseInt((String) obj.get("agree"));
+                        if (getSeq > seqNumber)
+                            seqNumber = getSeq;
+                        obj.put("type", "P");
+                        obj.put(my_port,"1");
+                        obj.put("agree", Integer.toString(seqNumber));
+                        seqNumber++;
+                        Proposed_Queue.add(obj);
+                        Log.e(TAG, "M - msg that is to be proposed" + obj.toString());
+                        //new SendMessage().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, obj.toString(), "M");
+                        DataOutputStream outputStream = new DataOutputStream(newSocket.getOutputStream());
+                        outputStream.writeUTF(obj.toString());
+                        outputStream.flush();
+                    }
                     inputStream.close();
                     newSocket.close();
                 }
@@ -189,6 +243,10 @@ public class GroupMessengerActivity extends Activity {
             }
             catch (IOException e) {
                 Log.e(TAG, "Server Socket IOException");
+                e.printStackTrace();
+            }
+            catch (JSONException e){
+                Log.e(TAG, "Server Task JSON Exception");
             }
 
             return null;
@@ -225,13 +283,20 @@ public class GroupMessengerActivity extends Activity {
                     while(it_hold.hasNext()){
                         JSONObject proposedHead = Proposed_Queue.peek();
                         JSONObject holdbackHead = Holdback_Queue.peek();
+
+                        Log.e(TAG, "A - holdback head" + holdbackHead.toString());
+
                         int holdbackAgree = Integer.parseInt((String) holdbackHead.get("agree"));
                         int proposeAgree = -1;
                         int holdback_avd = Integer.parseInt((String)holdbackHead.get("avd"));
                         int proposed_avd = -1;
                         if(proposedHead != null) {
+                            Log.e(TAG, "A - propose head" + proposedHead.toString());
                             proposeAgree = Integer.parseInt((String) proposedHead.get("agree"));
                             proposed_avd = Integer.parseInt((String)proposedHead.get("avd"));
+                        }
+                        else{
+                            Log.e(TAG, "A - propose head is null");
                         }
                         // condition to deliver message in total order and to resolve conflict in it.
                         if(holdbackAgree < proposeAgree || proposedHead == null || (holdbackAgree == proposeAgree && holdback_avd < proposed_avd)){
@@ -255,7 +320,7 @@ public class GroupMessengerActivity extends Activity {
                 }
 
                 //type - 'M', Initial message that is sent to AVDs to get proposals.
-                if (!avd.equals(my_port) && type.equals("M")) {
+                /*if (!avd.equals(my_port) && type.equals("M")) {
                     Log.e(TAG, "M - msg received initially" + obj.toString());
                     int getSeq = Integer.parseInt((String) obj.get("agree"));
                     if (getSeq > seqNumber)
@@ -302,7 +367,8 @@ public class GroupMessengerActivity extends Activity {
                             currObj.put("totalrep", Integer.toString(total));
                             int finalSeq = Math.max(Integer.parseInt((String) obj.get("agree")), Integer.parseInt((String) currObj.get("agree")));
                             currObj.put("agree", Integer.toString(finalSeq));
-                            for(String p:REMOTE_PORTS) {
+                            //List<String> tempPortList = new ArrayList<String>(REMOTE_PORTS);
+                            for(String p:Ports_Array) {
                                 String isRep = (String) obj.get(p);
                                 if(isRep.equals("1")) {
                                     currObj.put(p, isRep);
@@ -322,34 +388,41 @@ public class GroupMessengerActivity extends Activity {
                             break;
                         }
                     }
-                }
+                }*/
                 //type - 'F', To remove the failure port number.
                 if (type.equals("F")) {
 
                     Log.e(TAG, "F - Failure message received " + obj.toString());
                     String failAvd = (String) obj.get("failavd");
-                    if(REMOTE_PORTS.contains(failAvd)) {
-                        //if(!avd.equals(my_port)){
-                        REMOTE_PORTS.remove(avd);
+                    //if(REMOTE_PORTS.contains(failAvd)) {
+                    if(!Failed_AVD.equals(failAvd)){
+                        Failed_AVD = failAvd;
                         Total_Ports--;
-                        //}
-                        Iterator<JSONObject> it = Proposed_Queue.iterator();
-                        while (it.hasNext()) {
-                            JSONObject currObj = it.next();
-                            String currAvd = (String) currObj.get("avd");
-                            if (currAvd.equals(failAvd)) {
-                                Proposed_Queue.remove(currObj);
-                                continue;
-                            }
-                            String isReply = (String) currObj.get(failAvd);
-                            int totalRep = Integer.parseInt((String) currObj.get("totalrep"));
-                            if (isReply.equals("0") && totalRep >= Total_Ports && !currAvd.equals(failAvd)) {
-                                currObj.put("type", "A");
-                                Log.e(TAG, "P - msg sent as agreement" + currObj.toString());
-                                new SendMessage().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, currObj.toString(), "P");
-                            }
-                        }
                     }
+                    Iterator<JSONObject> it = Proposed_Queue.iterator();
+                    while (it.hasNext()) {
+                        JSONObject currObj = it.next();
+                        String currAvd = (String) currObj.get("avd");
+                        //String isReply = (String) currObj.get(failAvd);
+                        //int totalRep = Integer.parseInt((String) currObj.get("totalrep"));
+                        if (currAvd.equals(failAvd)) {
+                            Proposed_Queue.remove(currObj);
+                            continue;
+                        }
+                        /*if (isReply.equals("0") && totalRep >= Total_Ports && !currAvd.equals(failAvd)) {
+                            currObj.put("type", "A");
+                            Log.e(TAG, "P - msg sent as agreement" + currObj.toString());
+                            new SendMessage().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, currObj.toString(), "P");
+                            continue;
+                        }*/
+                        /*
+                        if(isReply.equals("0")){
+                            Proposed_Queue.remove(currObj);
+                            continue;
+                        }
+                        */
+                    }
+                    //}
                 }
             /*
              * The following code creates a file in the AVD's internal storage and stores a file.
@@ -390,57 +463,93 @@ public class GroupMessengerActivity extends Activity {
         @Override
         protected Void doInBackground(String... msgs) {
             try {
-                String failedPort = new String();
+                //String failedPort = new String();
+                int replyCount = 0;
+                int finalSeq = -1;
                 // Message construct. 'avd' and 'pro' together will be an unique identifier for every message.
-                JSONObject obj = new JSONObject().put("type","M") // 'type' - type of message
+                JSONObject mainObj = new JSONObject().put("type","M") // 'type' - type of message
                         .put("avd",msgs[1]) // 'avd' - port of message initiating AVD
                         .put("msg",msgs[0]) // 'msg' - message content
                         .put("pro",Integer.toString(seqNumber)) // 'pro' - proposed sequence number by message initiator.
                                                                      // (will never be changed)
-                        .put("agree",Integer.toString(seqNumber)) // 'agree' - sequence number that each AVD agree on.
+                        .put("agree",Integer.toString(seqNumber));// 'agree' - sequence number that each AVD agree on.
                                                                         // (finally will contain the largest of all proposed sequence number)
-                        .put("totalrep","0"); // 'totalrep' - int maintained by the initiator to observe total number of replies.
-                for(String p:Ports_Array){
-                    obj.put(p,"0"); // if the AVD p has proposed priority or not (0,1).
-                }
-                Proposed_Queue.add(new JSONObject(obj.toString()));
+
+                Proposed_Queue.add(new JSONObject(mainObj.toString()));
                 seqNumber++;
+                //List<String> tempPortList = new ArrayList<String>(REMOTE_PORTS);
                 for(String port:REMOTE_PORTS) {
-                    try {
-                        Socket socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}),
-                                Integer.parseInt(port));
-                        //socket.connect(new InetSocketAddress(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}),
-                        //        Integer.parseInt(port)));
-                        //socket.setSoTimeout(500);
-                        String strToSend = obj.toString();
-                        DataOutputStream outputStream = new DataOutputStream(socket.getOutputStream());
-                        outputStream.writeUTF(strToSend);
-                        outputStream.flush();
-                        Log.e(TAG, "Client side - message sent to : " + port);
-                    }
-                    catch (SocketTimeoutException exception){
-                        failedPort = port;
-                        Log.e(TAG, "Socket time out exception - Failure handling");
-                        continue;
+                    if(!port.equals(Failed_AVD)) {
+                        try {
+                            Socket socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}),
+                                    Integer.parseInt(port));
+                            //socket.connect(new InetSocketAddress(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}),
+                            //      Integer.parseInt(port)),5000);
+                            socket.setSoTimeout(2000);
+                            String strToSend = mainObj.toString();
+                            DataOutputStream outputStream = new DataOutputStream(socket.getOutputStream());
+                            outputStream.writeUTF(strToSend);
+                            outputStream.flush();
+
+                            DataInputStream inputStream = new DataInputStream(socket.getInputStream());
+                            String strReceived = inputStream.readUTF().trim();
+                            inputStream.close();
+                            replyCount++;
+                            JSONObject obj = new JSONObject(strReceived);
+                            String type = (String) obj.get("type");
+                            String avd = (String) obj.get("avd");
+                            String pro = (String) obj.get("pro");
+                            //type - 'P', stands for Messages of type proposal to decide on the sequence number.
+                            if (type.equals("P")) {
+
+                                Log.e(TAG, "P - msg that is proposed" + obj.toString());
+                                Iterator<JSONObject> it = Proposed_Queue.iterator();
+                                while (it.hasNext()) {
+                                    JSONObject currObj = it.next();
+                                    String currPro = (String) currObj.get("pro");
+                                    String currAvd = (String) currObj.get("avd");
+                                    if (currAvd.equals(avd) && currPro.equals(pro)) {
+                                        //Proposed_Queue.remove(currObj);
+                                        finalSeq = Math.max(Integer.parseInt((String) obj.get("agree")), Integer.parseInt((String) currObj.get("agree")));
+                                        currObj.put("agree", Integer.toString(finalSeq));
+                                        //Proposed_Queue.add(currObj);
+                                        Log.e(TAG, "P - msg updated after proposal" + currObj.toString());
+                                        break;
+                                    }
+                                }
+                            }
+                            Log.e(TAG, "Client side - message sent to : " + port);
+                        } catch (IOException e) {
+                            Failed_AVD = port;
+                            Total_Ports--;
+                            JSONObject failObj = new JSONObject().put("type", "F") // 'type' - type of message
+                                    .put("avd", msgs[1]) // 'avd' - port of message initiating AVD
+                                    .put("pro", Integer.toString(-1)) // 'pro' - proposed sequence number by message initiator.
+                                    .put("failavd", Failed_AVD);
+                            new SendMessage().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, failObj.toString(), "F");
+                            Log.e(TAG, "Socket time out exception - Failure handling " + Failed_AVD);
+                            //continue;
+                        }
                     }
                 }
-                if(!failedPort.isEmpty()) {
-                    //REMOTE_PORTS.remove(failedPort);
-                    //Total_Ports--;
-                    JSONObject failObj = new JSONObject().put("type", "F") // 'type' - type of message
-                            .put("avd", msgs[1]) // 'avd' - port of message initiating AVD
-                            .put("pro", Integer.toString(-1)) // 'pro' - proposed sequence number by message initiator.
-                            .put("failavd", failedPort);
-                    new SendMessage().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, failObj.toString(), "F");
+
+                if (replyCount >= Total_Ports) {
+                    if (finalSeq + 1 > seqNumber)
+                        seqNumber = finalSeq + 1;
+                    mainObj.put("type", "A");
+                    mainObj.put("agree", Integer.toString(finalSeq));
+                    Log.e(TAG, "P - msg sent as agreement" + mainObj.toString());
+                    new SendMessage().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, mainObj.toString(), "P");
                 }
 
                 //socket.close();
             }
-            catch (UnknownHostException e) {
+            /*catch (UnknownHostException e) {
                 Log.e(TAG, "ClientTask UnknownHostException");
-            } catch (IOException e) {
+            } */
+            /*catch (IOException e) {
                 Log.e(TAG, "ClientTask socket IOException");
-            }
+            }*/
             catch (JSONException e){
                 Log.e(TAG, "ClientTask JSON Exception");
             }
@@ -454,78 +563,92 @@ public class GroupMessengerActivity extends Activity {
         @Override
         protected Void doInBackground(String... msgs) {
             try {
-                String failedPort = new String();
-                if(msgs[1].equals("M")){
+                //String failedPort = new String();
+                /*if(msgs[1].equals("M")){
                     JSONObject obj = new JSONObject(msgs[0]);
                     String port = (String) obj.get("avd");
                     try {
                         Socket socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}),
                                 Integer.parseInt(port));
                         //socket.connect(new InetSocketAddress(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}),
-                          //      Integer.parseInt(port)));
+                          //     Integer.parseInt(port)),5000);
                         String msgToSend = msgs[0];
+                        socket.setSoTimeout(2000);
                         DataOutputStream outputStream = new DataOutputStream(socket.getOutputStream());
                         outputStream.writeUTF(msgToSend);
                         outputStream.flush();
+                        //Acknowledgement from port
+                        DataInputStream inputStream = new DataInputStream(socket.getInputStream());
+                        inputStream.readUTF(); // Connection ack.
+                        inputStream.close();
                     }
-                    catch (SocketTimeoutException exception){
+                    catch (IOException e){
                         failedPort = port;
-                        Log.e(TAG, "Socket time out exception - Failure handling - Send message 'M' ");;
+                        Log.e(TAG, "Socket time out exception - Failure handling - Send message 'M' " + failedPort);;
                     }
-                }
+                }*/
                 if(msgs[1].equals("P")){
+                    //List<String> tempPortList = new ArrayList<String>(REMOTE_PORTS);
                     for(String port:REMOTE_PORTS) {
                         try {
                             Socket socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}),
                                     Integer.parseInt(port));
                             //socket.connect(new InetSocketAddress(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}),
-                              //      Integer.parseInt(port)));
+                              //      Integer.parseInt(port)),5000);
                             String msgToSend = msgs[0];
+                            socket.setSoTimeout(2000);
                             DataOutputStream outputStream = new DataOutputStream(socket.getOutputStream());
                             outputStream.writeUTF(msgToSend);
                             outputStream.flush();
                         }
-                        catch (SocketTimeoutException exception){
-                            failedPort = port;
-                            Log.e(TAG, "Socket time out exception - Failure handling - Send message 'P'");
+                        catch (IOException e){
+                            Failed_AVD = port;
+                            Total_Ports--;
+                            JSONObject failObj = new JSONObject().put("type", "F") // 'type' - type of message
+                                    .put("avd", msgs[1]) // 'avd' - port of message initiating AVD
+                                    .put("pro", Integer.toString(-1)) // 'pro' - proposed sequence number by message initiator.
+                                    .put("failavd", Failed_AVD);
+                            new SendMessage().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, failObj.toString(), "F");
+                            Log.e(TAG, "Socket time out exception - Failure handling - Send message 'P'" + Failed_AVD);
                             continue;
                         }
                     }
                 }
                 if(msgs[1].equals("F")){
+                    //List<String> tempPortList = new ArrayList<String>(REMOTE_PORTS);
                     for (String port : REMOTE_PORTS) {
                         try {
-                            Socket socket = new Socket();
-                            socket.connect(new InetSocketAddress(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}),
-                                    Integer.parseInt(port)));
+                            Socket socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}),
+                                    Integer.parseInt(port));
+                            //socket.connect(new InetSocketAddress(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}),
+                              //      Integer.parseInt(port)),5000);
                             String msgToSend = msgs[0];
+                            socket.setSoTimeout(2000);
                             DataOutputStream outputStream = new DataOutputStream(socket.getOutputStream());
                             outputStream.writeUTF(msgToSend);
                             outputStream.flush();
                         }
-                        catch (SocketTimeoutException exception){
-                            //failedPort = port;
+                        catch (IOException e){
+                            Failed_AVD = port;
+                            Total_Ports--;
+                            JSONObject failObj = new JSONObject().put("type", "F") // 'type' - type of message
+                                    .put("avd", msgs[1]) // 'avd' - port of message initiating AVD
+                                    .put("pro", Integer.toString(-1)) // 'pro' - proposed sequence number by message initiator.
+                                    .put("failavd", Failed_AVD);
+                            new SendMessage().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, failObj.toString(), "F");
                             Log.e(TAG, "'F' - Socket time out exception - Failure handling in send message class");
                             continue;
                         }
                     }
                 }
                 //socket.close();
-                if(!failedPort.isEmpty()) {
-                    //REMOTE_PORTS.remove(failedPort);
-                    //Total_Ports--;
-                    JSONObject failObj = new JSONObject().put("type", "F") // 'type' - type of message
-                            .put("avd", msgs[1]) // 'avd' - port of message initiating AVD
-                            .put("pro", Integer.toString(-1)) // 'pro' - proposed sequence number by message initiator.
-                            .put("failavd", failedPort);
-                    new SendMessage().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, failObj.toString(), "F");
-                }
             }
-            catch (UnknownHostException e) {
+            /*catch (UnknownHostException e) {
                 Log.e(TAG, "SendMessage UnknownHostException");
-            } catch (IOException e) {
+            } */
+            /*catch (IOException e) {
                 Log.e(TAG, "SendMessage socket IOException");
-            }
+            }*/
             catch (JSONException e){
                 Log.e(TAG, "SendMessage JSON Exception");
             }
