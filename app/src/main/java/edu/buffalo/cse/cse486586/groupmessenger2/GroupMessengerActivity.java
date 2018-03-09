@@ -181,14 +181,8 @@ public class GroupMessengerActivity extends Activity {
 
                 while (true) {
                     Socket newSocket = serverSocket.accept();
-                    /*DataOutputStream outputStream = new DataOutputStream(newSocket.getOutputStream());
-                    outputStream.writeUTF("ack");
-                    outputStream.flush();
-                    //outputStream.close();*/
                     DataInputStream inputStream = new DataInputStream(newSocket.getInputStream());
                     String strReceived = inputStream.readUTF().trim();
-
-
                     JSONObject obj = new JSONObject(strReceived);
                     String type = (String) obj.get("type");
                     String avd = (String) obj.get("avd");
@@ -198,7 +192,7 @@ public class GroupMessengerActivity extends Activity {
                         publishProgress(strReceived);
                     }
                     if (avd.equals(my_port) && type.equals("M")) {
-                        Log.e(TAG, "M - msg from same AVD" + obj.toString());
+                        //Log.e(TAG, "M - msg from same AVD" + obj.toString());
                         Iterator<JSONObject> it = Proposed_Queue.iterator();
                         while(it.hasNext()) {
                             JSONObject currObj = it.next();
@@ -207,11 +201,8 @@ public class GroupMessengerActivity extends Activity {
                             if(currAvd.equals(avd) && currPro.equals(pro)){
                                 //Proposed_Queue.remove(currObj);
                                 currObj.put("type", "P");
-                                currObj.put(my_port,"1");
-                                //int total = Integer.parseInt((String) currObj.get("totalrep")) + 1;
-                                //currObj.put("totalrep", Integer.toString(total));
-                                Log.e(TAG, "M - msg from same AVD pushed to queue" + currObj.toString());
                                 //Proposed_Queue.add(currObj);
+                                //Log.e(TAG, "M - msg from same AVD pushed to queue" + currObj.toString());
                                 DataOutputStream outputStream = new DataOutputStream(newSocket.getOutputStream());
                                 outputStream.writeUTF(currObj.toString());
                                 outputStream.flush();
@@ -221,17 +212,15 @@ public class GroupMessengerActivity extends Activity {
                     }
                     //type - 'M', Initial message that is sent to AVDs to get proposals.
                     if (!avd.equals(my_port) && type.equals("M")) {
-                        Log.e(TAG, "M - msg received initially" + obj.toString());
+                        //Log.e(TAG, "M - msg received initially" + obj.toString());
                         int getSeq = Integer.parseInt((String) obj.get("agree"));
                         if (getSeq > seqNumber)
                             seqNumber = getSeq;
                         obj.put("type", "P");
-                        obj.put(my_port,"1");
                         obj.put("agree", Integer.toString(seqNumber));
                         seqNumber++;
                         Proposed_Queue.add(obj);
-                        Log.e(TAG, "M - msg that is to be proposed" + obj.toString());
-                        //new SendMessage().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, obj.toString(), "M");
+                        //Log.e(TAG, "M - msg that is to be proposed" + obj.toString());
                         DataOutputStream outputStream = new DataOutputStream(newSocket.getOutputStream());
                         outputStream.writeUTF(obj.toString());
                         outputStream.flush();
@@ -265,7 +254,7 @@ public class GroupMessengerActivity extends Activity {
 
                 // type - 'A', stands for agreed message sequence that can be deliver to all the AVDs.
                 if(type.equals("A")){
-                    Log.e(TAG, "A - msg recived for agreement" + obj.toString());
+                    //Log.e(TAG, "A - msg recived for agreement" + obj.toString());
                     // Iterator to iterate Proposed_Queue
                     Iterator<JSONObject> it = Proposed_Queue.iterator();
                     while(it.hasNext()) {
@@ -284,20 +273,20 @@ public class GroupMessengerActivity extends Activity {
                         JSONObject proposedHead = Proposed_Queue.peek();
                         JSONObject holdbackHead = Holdback_Queue.peek();
 
-                        Log.e(TAG, "A - holdback head" + holdbackHead.toString());
+                        //Log.e(TAG, "A - holdback head" + holdbackHead.toString());
 
                         int holdbackAgree = Integer.parseInt((String) holdbackHead.get("agree"));
                         int proposeAgree = -1;
                         int holdback_avd = Integer.parseInt((String)holdbackHead.get("avd"));
                         int proposed_avd = -1;
                         if(proposedHead != null) {
-                            Log.e(TAG, "A - propose head" + proposedHead.toString());
+                            //Log.e(TAG, "A - propose head" + proposedHead.toString());
                             proposeAgree = Integer.parseInt((String) proposedHead.get("agree"));
                             proposed_avd = Integer.parseInt((String)proposedHead.get("avd"));
                         }
-                        else{
-                            Log.e(TAG, "A - propose head is null");
-                        }
+                        //else{
+                        //    Log.e(TAG, "A - propose head is null");
+                        //}
                         // condition to deliver message in total order and to resolve conflict in it.
                         if(holdbackAgree < proposeAgree || proposedHead == null || (holdbackAgree == proposeAgree && holdback_avd < proposed_avd)){
                             holdbackHead = Holdback_Queue.poll();
@@ -309,7 +298,7 @@ public class GroupMessengerActivity extends Activity {
                             ContentValues vals = new ContentValues();
                             vals.put(KEY,seq);
                             vals.put(VALUE,msg);
-                            Log.e(TAG, "A - seq and message inserted" + seq + msg);
+                            //Log.e(TAG, "A - seq and message inserted" + seq + msg);
                             getContentResolver().insert(mUri,vals);
                         }
 
@@ -319,82 +308,10 @@ public class GroupMessengerActivity extends Activity {
                     }
                 }
 
-                //type - 'M', Initial message that is sent to AVDs to get proposals.
-                /*if (!avd.equals(my_port) && type.equals("M")) {
-                    Log.e(TAG, "M - msg received initially" + obj.toString());
-                    int getSeq = Integer.parseInt((String) obj.get("agree"));
-                    if (getSeq > seqNumber)
-                        seqNumber = getSeq;
-                    obj.put("type", "P");
-                    obj.put(my_port,"1");
-                    obj.put("agree", Integer.toString(seqNumber));
-                    seqNumber++;
-                    Proposed_Queue.add(obj);
-                    Log.e(TAG, "M - msg that is to be proposed" + obj.toString());
-                    new SendMessage().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, obj.toString(), "M");
-                }
-                if (avd.equals(my_port) && type.equals("M")) {
-                    Log.e(TAG, "M - msg from same AVD" + obj.toString());
-                    Iterator<JSONObject> it = Proposed_Queue.iterator();
-                    while(it.hasNext()) {
-                        JSONObject currObj = it.next();
-                        String currPro = (String) currObj.get("pro");
-                        String currAvd = (String) currObj.get("avd");
-                        if(currAvd.equals(avd) && currPro.equals(pro)){
-                            Proposed_Queue.remove(currObj);
-                            currObj.put("type", "P");
-                            currObj.put(my_port,"1");
-                            int total = Integer.parseInt((String) currObj.get("totalrep")) + 1;
-                            currObj.put("totalrep", Integer.toString(total));
-                            Log.e(TAG, "M - msg from same AVD pushed to queue" + currObj.toString());
-                            Proposed_Queue.add(currObj);
-                            break;
-                        }
-                    }
-                }
-
-                //type - 'P', stands for Messages of type proposal to decide on the sequence number.
-                if (type.equals("P")) {
-                    Log.e(TAG, "P - msg that is proposed" + obj.toString());
-                    Iterator<JSONObject> it = Proposed_Queue.iterator();
-                    while (it.hasNext()) {
-                        JSONObject currObj = it.next();
-                        String currPro = (String) currObj.get("pro");
-                        String currAvd = (String) currObj.get("avd");
-                        if (currAvd.equals(avd) && currPro.equals(pro)) {
-                            Proposed_Queue.remove(currObj);
-                            int total = Integer.parseInt((String) currObj.get("totalrep")) + 1;
-                            currObj.put("totalrep", Integer.toString(total));
-                            int finalSeq = Math.max(Integer.parseInt((String) obj.get("agree")), Integer.parseInt((String) currObj.get("agree")));
-                            currObj.put("agree", Integer.toString(finalSeq));
-                            //List<String> tempPortList = new ArrayList<String>(REMOTE_PORTS);
-                            for(String p:Ports_Array) {
-                                String isRep = (String) obj.get(p);
-                                if(isRep.equals("1")) {
-                                    currObj.put(p, isRep);
-                                    break;
-                                }
-                            }
-                            Proposed_Queue.add(currObj);
-                            Log.e(TAG, "P - msg updated after proposal" + currObj.toString());
-                            if (total >= Total_Ports) {
-                                if (finalSeq + 1 > seqNumber)
-                                    seqNumber = finalSeq + 1;
-                                currObj.put("type", "A");
-                                Log.e(TAG, "P - msg sent as agreement" + currObj.toString());
-                                new SendMessage().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, currObj.toString(), "P");
-                            }
-
-                            break;
-                        }
-                    }
-                }*/
                 //type - 'F', To remove the failure port number.
                 if (type.equals("F")) {
-
-                    Log.e(TAG, "F - Failure message received " + obj.toString());
+                    //Log.e(TAG, "F - Failure message received " + obj.toString());
                     String failAvd = (String) obj.get("failavd");
-                    //if(REMOTE_PORTS.contains(failAvd)) {
                     if(!Failed_AVD.equals(failAvd)){
                         Failed_AVD = failAvd;
                         Total_Ports--;
@@ -403,26 +320,11 @@ public class GroupMessengerActivity extends Activity {
                     while (it.hasNext()) {
                         JSONObject currObj = it.next();
                         String currAvd = (String) currObj.get("avd");
-                        //String isReply = (String) currObj.get(failAvd);
-                        //int totalRep = Integer.parseInt((String) currObj.get("totalrep"));
                         if (currAvd.equals(failAvd)) {
                             Proposed_Queue.remove(currObj);
                             continue;
                         }
-                        /*if (isReply.equals("0") && totalRep >= Total_Ports && !currAvd.equals(failAvd)) {
-                            currObj.put("type", "A");
-                            Log.e(TAG, "P - msg sent as agreement" + currObj.toString());
-                            new SendMessage().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, currObj.toString(), "P");
-                            continue;
-                        }*/
-                        /*
-                        if(isReply.equals("0")){
-                            Proposed_Queue.remove(currObj);
-                            continue;
-                        }
-                        */
                     }
-                    //}
                 }
             /*
              * The following code creates a file in the AVD's internal storage and stores a file.
@@ -463,7 +365,6 @@ public class GroupMessengerActivity extends Activity {
         @Override
         protected Void doInBackground(String... msgs) {
             try {
-                //String failedPort = new String();
                 int replyCount = 0;
                 int finalSeq = -1;
                 // Message construct. 'avd' and 'pro' together will be an unique identifier for every message.
@@ -477,15 +378,12 @@ public class GroupMessengerActivity extends Activity {
 
                 Proposed_Queue.add(new JSONObject(mainObj.toString()));
                 seqNumber++;
-                //List<String> tempPortList = new ArrayList<String>(REMOTE_PORTS);
                 for(String port:REMOTE_PORTS) {
                     if(!port.equals(Failed_AVD)) {
                         try {
                             Socket socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}),
                                     Integer.parseInt(port));
-                            //socket.connect(new InetSocketAddress(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}),
-                            //      Integer.parseInt(port)),5000);
-                            socket.setSoTimeout(2000);
+                            socket.setSoTimeout(1000);
                             String strToSend = mainObj.toString();
                             DataOutputStream outputStream = new DataOutputStream(socket.getOutputStream());
                             outputStream.writeUTF(strToSend);
@@ -502,23 +400,23 @@ public class GroupMessengerActivity extends Activity {
                             //type - 'P', stands for Messages of type proposal to decide on the sequence number.
                             if (type.equals("P")) {
 
-                                Log.e(TAG, "P - msg that is proposed" + obj.toString());
+                                //Log.e(TAG, "P - msg that is proposed" + obj.toString());
                                 Iterator<JSONObject> it = Proposed_Queue.iterator();
                                 while (it.hasNext()) {
                                     JSONObject currObj = it.next();
                                     String currPro = (String) currObj.get("pro");
                                     String currAvd = (String) currObj.get("avd");
                                     if (currAvd.equals(avd) && currPro.equals(pro)) {
-                                        //Proposed_Queue.remove(currObj);
                                         finalSeq = Math.max(Integer.parseInt((String) obj.get("agree")), Integer.parseInt((String) currObj.get("agree")));
+                                        Proposed_Queue.remove(currObj);
                                         currObj.put("agree", Integer.toString(finalSeq));
-                                        //Proposed_Queue.add(currObj);
-                                        Log.e(TAG, "P - msg updated after proposal" + currObj.toString());
+                                        Proposed_Queue.add(currObj);
+                                        //Log.e(TAG, "P - msg updated after proposal" + currObj.toString());
                                         break;
                                     }
                                 }
                             }
-                            Log.e(TAG, "Client side - message sent to : " + port);
+                            //Log.e(TAG, "Client side - message sent to : " + port);
                         } catch (IOException e) {
                             Failed_AVD = port;
                             Total_Ports--;
@@ -538,18 +436,12 @@ public class GroupMessengerActivity extends Activity {
                         seqNumber = finalSeq + 1;
                     mainObj.put("type", "A");
                     mainObj.put("agree", Integer.toString(finalSeq));
-                    Log.e(TAG, "P - msg sent as agreement" + mainObj.toString());
+                    //Log.e(TAG, "P - msg sent as agreement" + mainObj.toString());
                     new SendMessage().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, mainObj.toString(), "P");
                 }
 
                 //socket.close();
             }
-            /*catch (UnknownHostException e) {
-                Log.e(TAG, "ClientTask UnknownHostException");
-            } */
-            /*catch (IOException e) {
-                Log.e(TAG, "ClientTask socket IOException");
-            }*/
             catch (JSONException e){
                 Log.e(TAG, "ClientTask JSON Exception");
             }
@@ -563,40 +455,13 @@ public class GroupMessengerActivity extends Activity {
         @Override
         protected Void doInBackground(String... msgs) {
             try {
-                //String failedPort = new String();
-                /*if(msgs[1].equals("M")){
-                    JSONObject obj = new JSONObject(msgs[0]);
-                    String port = (String) obj.get("avd");
-                    try {
-                        Socket socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}),
-                                Integer.parseInt(port));
-                        //socket.connect(new InetSocketAddress(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}),
-                          //     Integer.parseInt(port)),5000);
-                        String msgToSend = msgs[0];
-                        socket.setSoTimeout(2000);
-                        DataOutputStream outputStream = new DataOutputStream(socket.getOutputStream());
-                        outputStream.writeUTF(msgToSend);
-                        outputStream.flush();
-                        //Acknowledgement from port
-                        DataInputStream inputStream = new DataInputStream(socket.getInputStream());
-                        inputStream.readUTF(); // Connection ack.
-                        inputStream.close();
-                    }
-                    catch (IOException e){
-                        failedPort = port;
-                        Log.e(TAG, "Socket time out exception - Failure handling - Send message 'M' " + failedPort);;
-                    }
-                }*/
                 if(msgs[1].equals("P")){
-                    //List<String> tempPortList = new ArrayList<String>(REMOTE_PORTS);
                     for(String port:REMOTE_PORTS) {
                         try {
                             Socket socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}),
                                     Integer.parseInt(port));
-                            //socket.connect(new InetSocketAddress(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}),
-                              //      Integer.parseInt(port)),5000);
                             String msgToSend = msgs[0];
-                            socket.setSoTimeout(2000);
+                            socket.setSoTimeout(1000);
                             DataOutputStream outputStream = new DataOutputStream(socket.getOutputStream());
                             outputStream.writeUTF(msgToSend);
                             outputStream.flush();
@@ -615,15 +480,12 @@ public class GroupMessengerActivity extends Activity {
                     }
                 }
                 if(msgs[1].equals("F")){
-                    //List<String> tempPortList = new ArrayList<String>(REMOTE_PORTS);
                     for (String port : REMOTE_PORTS) {
                         try {
                             Socket socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}),
                                     Integer.parseInt(port));
-                            //socket.connect(new InetSocketAddress(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}),
-                              //      Integer.parseInt(port)),5000);
                             String msgToSend = msgs[0];
-                            socket.setSoTimeout(2000);
+                            socket.setSoTimeout(1000);
                             DataOutputStream outputStream = new DataOutputStream(socket.getOutputStream());
                             outputStream.writeUTF(msgToSend);
                             outputStream.flush();
@@ -643,16 +505,9 @@ public class GroupMessengerActivity extends Activity {
                 }
                 //socket.close();
             }
-            /*catch (UnknownHostException e) {
-                Log.e(TAG, "SendMessage UnknownHostException");
-            } */
-            /*catch (IOException e) {
-                Log.e(TAG, "SendMessage socket IOException");
-            }*/
             catch (JSONException e){
                 Log.e(TAG, "SendMessage JSON Exception");
             }
-
             return null;
         }
     }
