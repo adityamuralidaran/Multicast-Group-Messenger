@@ -22,5 +22,5 @@ python set_redir.py 10000
 ```
 
 ## Testing Phases:
-1. 4%: Your group messenger provides total-FIFO ordering guarantees with messages stored in the content provider.
-2. 6%: Your group messenger provides total-FIFO ordering guarantees with message stored in the content provider for all correct app          instances under a single app failure.
+1. 4%: Group messenger provides total-FIFO ordering guarantees with messages stored in the content provider.
+2. 6%: Group messenger provides total-FIFO ordering guarantees with message stored in the content provider for all correct app          instances under a single app failure.
