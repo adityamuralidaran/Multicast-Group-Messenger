@@ -36,12 +36,6 @@ import java.util.List;
 import java.util.PriorityQueue;
 import java.util.TreeMap;
 
-/**
- * GroupMessengerActivity is the main Activity for the assignment.
- * 
- * @author stevko
- *
- */
 public class GroupMessengerActivity extends Activity {
 
     static final String TAG = GroupMessengerActivity.class.getSimpleName();
@@ -132,25 +126,15 @@ public class GroupMessengerActivity extends Activity {
             return;
         }
 
-        /*
-         * TODO: Use the TextView to display your messages. Though there is no grading component
-         * on how you display the messages, if you implement it, it'll make your debugging easier.
-         */
+
         TextView tv = (TextView) findViewById(R.id.textView1);
         tv.setMovementMethod(new ScrollingMovementMethod());
         
-        /*
-         * Registers OnPTestClickListener for "button1" in the layout, which is the "PTest" button.
-         * OnPTestClickListener demonstrates how to access a ContentProvider.
-         */
+
         findViewById(R.id.button1).setOnClickListener(
                 new OnPTestClickListener(tv, getContentResolver()));
         
-        /*
-         * TODO: You need to register and implement an OnClickListener for the "Send" button.
-         * In your implementation you need to get the message from the input box (EditText)
-         * and send it to other AVDs.
-         */
+
         final EditText editText = (EditText) findViewById(R.id.editText1);
         findViewById(R.id.button4).setOnClickListener(new View.OnClickListener()        {
             @Override
@@ -191,6 +175,7 @@ public class GroupMessengerActivity extends Activity {
                     if(type.equals("A")||type.equals("F")) {
                         publishProgress(strReceived);
                     }
+                    //type - 'M', Initial message that is sent to AVDs to get proposals.
                     if (avd.equals(my_port) && type.equals("M")) {
                         //Log.e(TAG, "M - msg from same AVD" + obj.toString());
                         Iterator<JSONObject> it = Proposed_Queue.iterator();
